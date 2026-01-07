@@ -1,0 +1,82 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>VTT Time Shifter</title>
+  <style>
+    body { font-family: system-ui, sans-serif; padding: 16px; max-width: 1000px; margin: 0 auto; }
+    textarea { width: 100%; min-height: 260px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    input { width: 120px; padding: 6px; }
+    button { padding: 8px 12px; cursor: pointer; }
+    .row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin: 10px 0; }
+    .hint { color: #555; }
+  </style>
+</head>
+<body>
+  <h1>VTT Time Shifter</h1>
+  <p class="hint">Paste a .vtt file, set an offset (seconds), click Shift, then copy the output.</p>
+
+  <div class="row">
+    <label>Offset (seconds): <input id="offset" type="number" step="0.1" value="2.0"></label>
+    <button id="shift">Shift timestamps</button>
+    <button id="copy">Copy output</button>
+  </div>
+
+  <h3>Input VTT</h3>
+  <textarea id="input" placeholder="Paste WEBVTT here..."></textarea>
+
+  <h3>Output VTT</h3>
+  <textarea id="output" readonly></textarea>
+
+<script>
+function parseTime(t) {
+  // supports mm:ss.mmm or hh:mm:ss.mmm
+  const parts = t.trim().split(":");
+  let h=0, m=0, s=0;
+  if (parts.length === 2) {
+    m = Number(parts[0]);
+    s = Number(parts[1]);
+  } else {
+    h = Number(parts[0]);
+    m = Number(parts[1]);
+    s = Number(parts[2]);
+  }
+  return (h*3600) + (m*60) + s;
+}
+
+function fmtTime(total) {
+  total = Math.max(0, total);
+  const h = Math.floor(total / 3600);
+  const rem = total - h*3600;
+  const m = Math.floor(rem / 60);
+  const s = rem - m*60;
+  const ss = s.toFixed(3).padStart(6, "0"); // 00.000
+  if (h > 0) return `${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}:${ss}`;
+  return `${String(m).padStart(2,"0")}:${ss}`;
+}
+
+document.getElementById("shift").addEventListener("click", () => {
+  const off = Number(document.getElementById("offset").value || 0);
+  const lines = (document.getElementById("input").value || "").split(/\r?\n/);
+
+  const out = lines.map(line => {
+    const m = line.match(/^(\d{2}:\d{2}(?::\d{2})?\.\d{3})\s*-->\s*(\d{2}:\d{2}(?::\d{2})?\.\d{3})(.*)$/);
+    if (!m) return line;
+
+    const a = fmtTime(parseTime(m[1]) + off);
+    const b = fmtTime(parseTime(m[2]) + off);
+    return `${a} --> ${b}${m[3] || ""}`;
+  }).join("\n");
+
+  document.getElementById("output").value = out;
+});
+
+document.getElementById("copy").addEventListener("click", async () => {
+  const text = document.getElementById("output").value;
+  if (!text) return;
+  try { await navigator.clipboard.writeText(text); } catch(e) {}
+});
+</script>
+</body>
+</html>
